@@ -150,8 +150,8 @@ const AppointmentPage = () => {
         if (formData.appointment_type === 'Online') {
             const roomID = `care-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
             const doctorParam = encodeURIComponent(formData.doctor);
-            // This creates a link back to our own app's /video-call page with the room ID
-            const baseUrl = window.location.origin;
+            // Use the configured public URL if set, otherwise fall back to current origin
+            const baseUrl = import.meta.env.VITE_APP_BASE_URL || window.location.origin;
             meetingLink = `${baseUrl}/video-call?roomID=${roomID}&doctor=${doctorParam}`;
         }
 
