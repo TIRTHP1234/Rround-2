@@ -31,21 +31,27 @@ const LoginPage = () => {
     };
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] bg-gray-50 px-4 sm:px-6 lg:px-8 py-12">
-            <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden p-8 sm:p-10">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 mb-6 text-blue-600">
+        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-4 sm:px-6 lg:px-8 py-12 relative overflow-hidden">
+
+            {/* Background Decorative Blobs */}
+            <div className="absolute top-0 left-0 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+            <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+            <div className="absolute -bottom-32 left-20 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+
+            <div className="max-w-md w-full glass-card rounded-3xl p-8 sm:p-10 relative z-10">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 mb-8 text-white shadow-lg transform -translate-y-4">
                     <LogIn className="h-8 w-8" />
                 </div>
 
-                <h2 className="text-3xl font-extrabold text-center text-gray-900 mb-8">Patient Login</h2>
+                <h2 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-slate-700 text-center mb-8 tracking-tight">Welcome Back</h2>
 
                 {/* Hackathon Demo Notice */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex flex-col gap-3">
+                <div className="glass border border-blue-200/50 rounded-xl p-5 mb-8 flex flex-col gap-3">
                     <div className="flex items-start gap-3">
                         <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                        <div className="text-sm text-blue-800">
+                        <div className="text-sm text-slate-700">
                             <strong>Hackathon Demo Login:</strong>
-                            <p className="mt-1">You may log in with <strong>any email address</strong> to test the meeting link feature. The password is fixed as <strong>demo123</strong>.</p>
+                            <p className="mt-1 leading-relaxed">You may log in with <strong>any email address</strong> to test the meeting link feature. The password is fixed as <strong>demo123</strong>.</p>
                         </div>
                     </div>
                 </div>
@@ -67,7 +73,7 @@ const LoginPage = () => {
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
                     />
-                    <Button type="submit" fullWidth className="py-2.5 text-lg">
+                    <Button type="submit" fullWidth className="py-3 mt-4 text-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all duration-200 border-0 rounded-xl">
                         Sign In
                     </Button>
                 </form>

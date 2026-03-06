@@ -3,7 +3,8 @@
 :root {
   --color-primary: #2563eb;
   --color-primary-hover: #1d4ed8;
-  --color-background: #f8fafc;
+  --color-background: #f0f4f8;
+  /* Soft cool gray base */
   --color-surface: #ffffff;
   --color-text: #0f172a;
   --color-text-muted: #64748b;
@@ -12,12 +13,35 @@
 
 body {
   background-color: var(--color-background);
+  /* Premium subtle mesh gradient background */
+  background-image:
+    radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 0) 0, transparent 50%),
+    radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 0) 0, transparent 50%),
+    radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 0) 0, transparent 50%);
   color: var(--color-text);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   margin: 0;
   padding: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
+
+/* Glassmorphism Utilities */
+@utility glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+}
+
+@utility glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
 }
 
 /* Custom soft colors for healthcare feel */

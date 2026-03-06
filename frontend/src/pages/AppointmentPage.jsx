@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { CalendarClock, Loader2, Video, MapPin } from 'lucide-react';
+import { CalendarClock, Loader2, Video, MapPin, CreditCard, CheckCircle } from 'lucide-react';
 import Button from '../components/ui/Button';
 import InputField from '../components/ui/InputField';
 import SelectDropdown from '../components/ui/SelectDropdown';
@@ -9,10 +9,13 @@ import { createAppointment } from '../services/appointmentService';
 import { useAuth } from '../context/AuthContext';
 import emailjs from '@emailjs/browser';
 
+const RAZORPAY_KEY_ID = 'rzp_test_SNsjPlMowPUzYy'; // Test Key
+
 const AppointmentPage = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [paymentDone, setPaymentDone] = useState(false);
     const [formData, setFormData] = useState({
         patient_name: '',
         email: '',
@@ -65,22 +68,15 @@ const AppointmentPage = () => {
         { value: '04:00 PM', label: '04:00 PM' },
     ];
 
-    const appointmentTypeOptions = [
-        { value: 'In-Person', label: 'In-Person Visit' },
-        { value: 'Online', label: 'Online (Google Meet)' },
-    ];
-
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData((prev) => {
             const newData = { ...prev, [name]: value };
-            // Reset doctor if department changes
             if (name === 'department') {
                 newData.doctor = '';
             }
             return newData;
         });
-
         if (errors[name]) {
             setErrors((prev) => ({ ...prev, [name]: '' }));
         }
@@ -105,118 +101,150 @@ const AppointmentPage = () => {
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-
+    // === RAZORPAY PAYMENT ===
+    const handlePayment = () => {
         if (!validate()) {
-            toast.error('Please fill in all required fields correctly.');
+            toast.error('Please fill in all required fields before payment.');
             return;
         }
 
+        const options = {
+            key: RAZORPAY_KEY_ID,
+            amount: 50000, // ₹500 in paise
+            currency: 'INR',
+            name: 'CareConnect',
+            description: `Appointment with ${formData.doctor || 'Doctor'}`,
+            image: 'https://img.icons8.com/color/96/caduceus.png',
+            handler: function (response) {
+                // Payment was successful
+                toast.success('Payment successful! Confirming your appointment...', { duration: 3000 });
+                setPaymentDone(true);
+                // Automatically submit after payment
+                submitAppointment();
+            },
+            prefill: {
+                name: formData.patient_name,
+                email: formData.email,
+                contact: formData.phone,
+            },
+            theme: {
+                color: '#4f46e5', // Indigo color matching our design
+            },
+            modal: {
+                ondismiss: function () {
+                    toast.error('Payment cancelled. Please try again to confirm your appointment.');
+                }
+            }
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+    };
+
+    // === ACTUAL APPOINTMENT SUBMISSION (called after payment) ===
+    const submitAppointment = async () => {
         setIsSubmitting(true);
         let meetingLink = null;
 
-        // Auto-generate a dummy Google Meet link for online appointments
         if (formData.appointment_type === 'Online') {
             const randomString = Math.random().toString(36).substring(2, 12);
             meetingLink = `https://meet.google.com/lookup/${randomString}`;
         }
 
         try {
-            // NOTE: We omit appointment_type and meeting link from Supabase save for now unless you update the DB schema
-            // But we will pass the meetingLink through the React Router state to display it!
             const submissionData = { ...formData };
-            delete submissionData.appointment_type; // Removing so it doesn't break current Supabase schema insert
-
+            delete submissionData.appointment_type;
             await createAppointment(submissionData);
 
-            let successMessage = 'Your appointment request has been successfully submitted. We will confirm your time slot shortly.';
+            let successMessage = 'Your appointment has been successfully booked and payment received!';
 
-            // === EMAILJS INTEGRATION ===
+            // === EmailJS ===
             const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
             const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
             const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
-
             const finalMeetingLink = formData.appointment_type === 'Online' ? meetingLink : 'In-Person Clinic Visit';
 
             if (serviceId && templateId && publicKey) {
                 try {
-                    await emailjs.send(
-                        serviceId,
-                        templateId,
-                        {
-                            to_email: formData.email,
-                            to_name: formData.patient_name,
-                            booking_date: formData.appointment_date,
-                            booking_time: formData.time_slot,
-                            doctor_name: formData.doctor,
-                            meeting_link: finalMeetingLink,
-                            reply_to: formData.email,
-                        },
-                        publicKey
-                    );
-                    console.log("Email successfully sent via EmailJS!");
+                    await emailjs.send(serviceId, templateId, {
+                        to_email: formData.email,
+                        to_name: formData.patient_name,
+                        booking_date: formData.appointment_date,
+                        booking_time: formData.time_slot,
+                        doctor_name: formData.doctor,
+                        meeting_link: finalMeetingLink,
+                        reply_to: formData.email,
+                    }, publicKey);
                 } catch (emailErr) {
-                    console.error("Failed to send email via EmailJS:", emailErr);
+                    console.error('Failed to send email via EmailJS:', emailErr);
                 }
-            } else {
-                console.log(`[SIMULATED EMAIL] In production code this would send an email to ${formData.email} containing link: ${finalMeetingLink}`);
-            }
-
-            if (formData.appointment_type === 'Online') {
-                toast.success(`Meeting details and confirmation sent to ${formData.email}!`, { duration: 5000 });
-            } else {
-                toast.success(`Appointment confirmation sent to ${formData.email}!`, { duration: 5000 });
             }
 
             navigate('/confirmation', {
                 state: {
                     message: successMessage,
-                    meetingLink: meetingLink, // We only care about displaying the link on the UI if it's Online
+                    meetingLink: meetingLink,
                     email: formData.email
                 }
             });
 
         } catch (error) {
             console.error(error);
-            toast.error('Failed to request appointment. Please try again later.');
+            toast.error('Failed to save appointment. Please contact support.');
         } finally {
             setIsSubmitting(false);
         }
     };
 
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        handlePayment();
+    };
+
     const currentDoctorOptions = formData.department ? doctorOptions[formData.department] : [];
 
     return (
-        <div className="bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 min-h-[calc(100vh-4rem)] flex items-center justify-center">
-            <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl overflow-hidden">
-                {/* Header styling */}
-                <div className="bg-blue-600 px-6 py-8 sm:p-10 text-white">
+        <div className="py-12 px-4 sm:px-6 lg:px-8 min-h-[calc(100vh-4rem)] flex items-center justify-center relative overflow-hidden">
+            {/* Background blobs */}
+            <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-10 pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-10 pointer-events-none"></div>
+
+            <div className="max-w-2xl w-full glass-card rounded-3xl overflow-hidden relative z-10">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-8 sm:p-10 text-white">
                     <div className="flex items-center justify-center mb-4">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20">
-                            <CalendarClock size={28} className="text-white" />
+                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 shadow-lg">
+                            <CalendarClock size={32} className="text-white" />
                         </div>
                     </div>
-                    <h2 className="text-center text-3xl font-extrabold">Book an Appointment</h2>
-                    <p className="mt-2 text-center text-blue-100">
+                    <h2 className="text-center text-3xl font-extrabold tracking-tight">Book an Appointment</h2>
+                    <p className="mt-2 text-center text-blue-100 font-medium">
                         Schedule a visit with one of our expert doctors.
                     </p>
+
+                    {/* Payment notice */}
+                    <div className="mt-5 flex items-center justify-center gap-2 bg-white/10 border border-white/20 rounded-xl py-3 px-4">
+                        <CreditCard size={18} className="text-blue-200 flex-shrink-0" />
+                        <p className="text-sm text-blue-100">
+                            <strong>₹500 consultation fee</strong> will be charged via Razorpay before booking is confirmed.
+                        </p>
+                    </div>
                 </div>
 
                 {/* Form Body */}
-                <div className="px-6 py-8 sm:p-10 text-gray-800">
+                <div className="px-6 py-8 sm:p-10">
                     <form onSubmit={handleSubmit} className="space-y-6">
 
                         {/* Appointment Type Toggle */}
-                        <div className="bg-blue-50 p-4 rounded-xl mb-6">
-                            <label className="text-sm font-semibold text-blue-900 mb-3 block">How would you like to consult the doctor?</label>
+                        <div className="glass rounded-2xl p-4 mb-2">
+                            <label className="text-sm font-semibold text-slate-700 mb-3 block">How would you like to consult?</label>
                             <div className="grid grid-cols-2 gap-4">
                                 <button
                                     type="button"
                                     onClick={() => handleChange({ target: { name: 'appointment_type', value: 'In-Person' } })}
-                                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-all ${formData.appointment_type === 'In-Person'
-                                        ? 'bg-blue-600 text-white shadow-md'
-                                        : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-semibold transition-all duration-200 ${formData.appointment_type === 'In-Person'
+                                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-200'
+                                        : 'bg-white text-slate-600 border border-slate-200 hover:border-blue-300 hover:bg-blue-50'
                                         }`}
                                 >
                                     <MapPin size={18} /> In-Person
@@ -224,12 +252,12 @@ const AppointmentPage = () => {
                                 <button
                                     type="button"
                                     onClick={() => handleChange({ target: { name: 'appointment_type', value: 'Online' } })}
-                                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-all ${formData.appointment_type === 'Online'
-                                        ? 'bg-blue-600 text-white shadow-md'
-                                        : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-semibold transition-all duration-200 ${formData.appointment_type === 'Online'
+                                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-200'
+                                        : 'bg-white text-slate-600 border border-slate-200 hover:border-blue-300 hover:bg-blue-50'
                                         }`}
                                 >
-                                    <Video size={18} /> Online (Google Meet)
+                                    <Video size={18} /> Online (Meet)
                                 </button>
                             </div>
                         </div>
@@ -261,7 +289,7 @@ const AppointmentPage = () => {
                                 value={formData.phone}
                                 onChange={handleChange}
                                 error={errors.phone}
-                                placeholder="(123) 456-7890"
+                                placeholder="+91 99999 99999"
                             />
                             <SelectDropdown
                                 label="Department *"
@@ -281,7 +309,7 @@ const AppointmentPage = () => {
                                 onChange={handleChange}
                                 options={currentDoctorOptions}
                                 error={errors.doctor}
-                                placeholder={formData.department ? "Select Doctor" : "Select Department First"}
+                                placeholder={formData.department ? 'Select Doctor' : 'Select Department First'}
                                 disabled={!formData.department}
                             />
                             <InputField
@@ -306,8 +334,8 @@ const AppointmentPage = () => {
                             />
                         </div>
 
-                        <div className="flex flex-col space-y-1.5 sm:col-span-2">
-                            <label htmlFor="reason" className="text-sm font-medium leading-none text-gray-700">
+                        <div className="flex flex-col space-y-1.5">
+                            <label htmlFor="reason" className="text-sm font-semibold text-slate-700">
                                 Reason for Visit *
                             </label>
                             <textarea
@@ -316,24 +344,38 @@ const AppointmentPage = () => {
                                 rows={3}
                                 value={formData.reason}
                                 onChange={handleChange}
-                                className={`flex w-full rounded-md border bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.reason ? 'border-red-500 focus:ring-red-500' : 'border-gray-300'
-                                    }`}
+                                className={`flex w-full rounded-xl border bg-white/80 backdrop-blur px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${errors.reason ? 'border-red-400 focus:ring-red-400' : 'border-slate-200 hover:border-blue-200'}`}
                                 placeholder="Briefly describe the reason for your visit..."
                             />
                             {errors.reason && <p className="text-[0.8rem] font-medium text-red-500">{errors.reason}</p>}
                         </div>
 
-                        <div className="pt-4">
-                            <Button type="submit" fullWidth disabled={isSubmitting} className="py-3 text-lg">
+                        <div className="pt-2">
+                            <button
+                                type="submit"
+                                disabled={isSubmitting}
+                                className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
+                            >
                                 {isSubmitting ? (
                                     <>
-                                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                        Requesting...
+                                        <Loader2 className="h-5 w-5 animate-spin" />
+                                        Processing Payment...
+                                    </>
+                                ) : paymentDone ? (
+                                    <>
+                                        <CheckCircle className="h-5 w-5" />
+                                        Confirmed!
                                     </>
                                 ) : (
-                                    'Confirm Appointment Request'
+                                    <>
+                                        <CreditCard className="h-5 w-5" />
+                                        Pay ₹500 & Confirm Appointment
+                                    </>
                                 )}
-                            </Button>
+                            </button>
+                            <p className="text-center text-xs text-slate-500 mt-3">
+                                🔒 Secured by Razorpay. Your payment info is never stored.
+                            </p>
                         </div>
                     </form>
                 </div>
