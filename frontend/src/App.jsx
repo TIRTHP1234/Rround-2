@@ -10,6 +10,7 @@ import LoginPage from './pages/LoginPage';
 import QueryFormPage from './pages/QueryFormPage';
 import AppointmentPage from './pages/AppointmentPage';
 import ConfirmationPage from './pages/ConfirmationPage';
+import VideoCallPage from './pages/VideoCallPage';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -77,6 +78,15 @@ function AppRoutes() {
             element={
               <ProtectedRoute>
                 <ConfirmationPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/video-call"
+            element={
+              <ProtectedRoute>
+                <VideoCallPage />
               </ProtectedRoute>
             }
           />

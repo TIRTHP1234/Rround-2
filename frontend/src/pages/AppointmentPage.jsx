@@ -146,9 +146,13 @@ const AppointmentPage = () => {
         setIsSubmitting(true);
         let meetingLink = null;
 
+        // Generate a real ZegoCloud video call room URL for online appointments
         if (formData.appointment_type === 'Online') {
-            const randomString = Math.random().toString(36).substring(2, 12);
-            meetingLink = `https://meet.google.com/lookup/${randomString}`;
+            const roomID = `care-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+            const doctorParam = encodeURIComponent(formData.doctor);
+            // This creates a link back to our own app's /video-call page with the room ID
+            const baseUrl = window.location.origin;
+            meetingLink = `${baseUrl}/video-call?roomID=${roomID}&doctor=${doctorParam}`;
         }
 
         try {
